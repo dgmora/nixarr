@@ -9,6 +9,7 @@ with lib; let
   globals = config.util-nixarr.globals;
   defaultPort = 6969;
   nixarr = config.nixarr;
+  managedMediaDirs = map (media: media.path) (filter (media: media.create) nixarr.mediaDirs);
 in {
   options.nixarr.whisparr = {
     enable = mkOption {
@@ -105,10 +106,10 @@ in {
       };
     };
 
-    systemd.tmpfiles.rules = [
-      "d '${nixarr.mediaDir}/library'        0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/xxx'    0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-    ];
+    systemd.tmpfiles.rules = concatMap (mediaDir: [
+      "d '${mediaDir}/library'        0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      "d '${mediaDir}/library/xxx'    0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+    ]) managedMediaDirs;
 
     services.whisparr = {
       enable = cfg.enable;
