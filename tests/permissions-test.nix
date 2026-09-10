@@ -20,6 +20,14 @@ pkgs.testers.nixosTest {
       enable = true;
       stateDir = "/data/.state/nixarr";
       mediaDir = "/data/media";
+      mediaDirs = [
+        "/data/media"
+        "/data/media-local"
+        {
+          path = "/data/media-external";
+          create = false;
+        }
+      ];
       mediaUsers = ["testuser"];
 
       # Enable key services to trigger tmpfiles directory creation
@@ -92,18 +100,31 @@ pkgs.testers.nixosTest {
         else:
             machine.fail(f"{description} has wrong ownership: {user}:{group}, expected {expected_user}:{expected_group}")
 
-    # Check key directories exist with correct ownership
-    check_dir("/data/media", "root", "media", "Media root directory")
-    check_dir("/data/media/library/movies", "root", "media", "Movies directory")
-    check_dir("/data/media/library/shows", "root", "media", "Shows directory")
-    check_dir("/data/media/library/music", "root", "media", "Music directory")
+    # Check primary and additional managed roots exist with correct ownership
+    for media_root in ["/data/media", "/data/media-local"]:
+        check_dir(media_root, "root", "media", f"Media root directory {media_root}")
+        check_dir(f"{media_root}/library/movies", "root", "media", f"Movies directory {media_root}")
+        check_dir(f"{media_root}/library/shows", "root", "media", f"Shows directory {media_root}")
+        check_dir(f"{media_root}/library/music", "root", "media", f"Music directory {media_root}")
+
+    # A create=false root must not be materialized by Nixarr.
+    machine.fail("test -e /data/media-external")
+    print("✓ create=false media root was not created")
+
+    # Download clients still use the canonical mediaDir.
     check_dir("/data/media/torrents", "transmission", "media", "Torrents directory")
+    machine.fail("test -e /data/media-local/torrents")
 
     # Test 3: Verify service file access
     print("\n=== Testing Service File Access ===")
 
     # Test Jellyfin can write to media directories
-    test_dirs = ["/data/media/library/movies", "/data/media/library/shows"]
+    test_dirs = [
+        "/data/media/library/movies",
+        "/data/media/library/shows",
+        "/data/media-local/library/movies",
+        "/data/media-local/library/shows",
+    ]
     for test_dir in test_dirs:
         if machine.succeed(f"test -d '{test_dir}' && echo 'exists' || echo 'missing'").strip() == "exists":
             test_file = f"{test_dir}/jellyfin-test.txt"
@@ -118,25 +139,28 @@ pkgs.testers.nixosTest {
     # Test 4: Verify fix-permissions command
     print("\n=== Testing fix-permissions Command ===")
 
-    # Create file with wrong permissions
-    test_file = "/data/media/library/movies/test-wrong-perms.txt"
-    if machine.succeed("test -d '/data/media/library/movies' && echo 'exists' || echo 'missing'").strip() == "exists":
+    # Create files with wrong permissions on both managed roots.
+    test_files = [
+        "/data/media/library/movies/test-wrong-perms.txt",
+        "/data/media-local/library/movies/test-wrong-perms.txt",
+    ]
+    for test_file in test_files:
         machine.succeed(f"umask 077 && touch '{test_file}'")
-
-        # Verify initial permissions are wrong
         initial_perms = machine.succeed(f"stat -c '%a' '{test_file}'").strip()
         if initial_perms != "600":
             machine.fail(f"Expected 600 permissions, got {initial_perms}")
 
-        machine.succeed("nixarr fix-permissions")
+    machine.succeed("nixarr fix-permissions")
 
-        # Verify permissions were fixed
+    for test_file in test_files:
         fixed_perms = machine.succeed(f"stat -c '%a' '{test_file}'").strip()
         if fixed_perms not in ["644", "664"]:
             machine.fail(f"fix-permissions failed: permissions are {fixed_perms}, expected 644 or 664")
-
         machine.succeed(f"rm '{test_file}'")
-        print(f"✓ fix-permissions corrected file permissions from 600 to {fixed_perms}")
+        print(f"✓ fix-permissions corrected {test_file} to {fixed_perms}")
+
+    # fix-permissions must also leave an absent create=false root absent.
+    machine.fail("test -e /data/media-external")
 
     print("\n=== All Permission Tests Completed ===")
   '';
