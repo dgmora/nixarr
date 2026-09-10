@@ -9,6 +9,7 @@ with lib; let
   globals = config.util-nixarr.globals;
   defaultPort = 8989;
   nixarr = config.nixarr;
+  managedMediaDirs = map (media: media.path) (filter (media: media.create) nixarr.mediaDirs);
 in {
   imports = [./settings-sync];
 
@@ -107,11 +108,12 @@ in {
       };
     };
 
-    systemd.tmpfiles.rules = [
-      "d '${cfg.stateDir}' 0700 ${globals.sonarr.user} root - -"
-      "d '${nixarr.mediaDir}/library'        2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/shows'  2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-    ];
+    systemd.tmpfiles.rules =
+      ["d '${cfg.stateDir}' 0700 ${globals.sonarr.user} root - -"]
+      ++ concatMap (mediaDir: [
+        "d '${mediaDir}/library'        2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+        "d '${mediaDir}/library/shows'  2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      ]) managedMediaDirs;
 
     services.sonarr = {
       enable = cfg.enable;
