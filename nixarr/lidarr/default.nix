@@ -8,6 +8,7 @@ with lib; let
   cfg = config.nixarr.lidarr;
   globals = config.util-nixarr.globals;
   nixarr = config.nixarr;
+  managedMediaDirs = map (media: media.path) (filter (media: media.create) nixarr.mediaDirs);
   port = 8686;
 in {
   options.nixarr.lidarr = {
@@ -105,10 +106,10 @@ in {
       };
     };
 
-    systemd.tmpfiles.rules = [
-      "d '${nixarr.mediaDir}/library'        0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/music'  0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-    ];
+    systemd.tmpfiles.rules = concatMap (mediaDir: [
+      "d '${mediaDir}/library'        0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      "d '${mediaDir}/library/music'  0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+    ]) managedMediaDirs;
 
     services.lidarr = {
       enable = cfg.enable;
