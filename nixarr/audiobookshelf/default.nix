@@ -9,6 +9,7 @@ with lib; let
   globals = config.util-nixarr.globals;
   port = 9292;
   nixarr = config.nixarr;
+  managedMediaDirs = map (media: media.path) (filter (media: media.create) nixarr.mediaDirs);
 in {
   options.nixarr.audiobookshelf = {
     enable = mkOption {
@@ -188,13 +189,12 @@ in {
         };
       };
 
-      systemd.tmpfiles.rules = [
-        "d '${cfg.stateDir}' 0700 ${globals.audiobookshelf.user} root - -"
-
-        # Media Dirs
-        "d '${nixarr.mediaDir}/library/audiobooks'  0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-        "d '${nixarr.mediaDir}/library/podcasts'    0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      ];
+      systemd.tmpfiles.rules =
+        ["d '${cfg.stateDir}' 0700 ${globals.audiobookshelf.user} root - -"]
+        ++ concatMap (mediaDir: [
+          "d '${mediaDir}/library/audiobooks'  0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+          "d '${mediaDir}/library/podcasts'    0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+        ]) managedMediaDirs;
 
       systemd.services.audiobookshelf = {
         description = "Audiobookshelf is a self-hosted audiobook and podcast server";
