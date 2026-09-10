@@ -9,6 +9,8 @@ with lib; let
   cfg = config.nixarr.shelfmark;
   globals = config.util-nixarr.globals;
   nixarr = config.nixarr;
+  managedMediaDirs = map (media: media.path) (filter (media: media.create) nixarr.mediaDirs);
+  mediaDirs = map (media: media.path) nixarr.mediaDirs;
   port = 8084;
 in {
   options.nixarr.shelfmark = {
@@ -132,13 +134,13 @@ in {
       };
     };
 
-    systemd.tmpfiles.rules = [
-      "d '${cfg.stateDir}' 0700 ${globals.shelfmark.user} root - -"
-
-      "d '${nixarr.mediaDir}/library'            0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/books'      0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/audiobooks' 0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-    ];
+    systemd.tmpfiles.rules =
+      ["d '${cfg.stateDir}' 0700 ${globals.shelfmark.user} root - -"]
+      ++ concatMap (mediaDir: [
+        "d '${mediaDir}/library'            0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+        "d '${mediaDir}/library/books'      0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+        "d '${mediaDir}/library/audiobooks' 0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      ]) managedMediaDirs;
 
     services =
       {
@@ -185,7 +187,7 @@ in {
       User = globals.shelfmark.user;
       Group = globals.shelfmark.group;
       StateDirectory = mkForce "";
-      ReadWritePaths = [cfg.stateDir nixarr.mediaDir];
+      ReadWritePaths = [cfg.stateDir] ++ mediaDirs;
       UMask = mkForce "0002";
     };
 
