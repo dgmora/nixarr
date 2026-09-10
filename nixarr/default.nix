@@ -97,7 +97,9 @@ in {
       default = "/data/media";
       example = "/nixarr";
       description = ''
-        The location of the media directory for the services.
+        The primary media directory for the services. Services that require a
+        single media path, such as download clients, continue to use this path.
+        By default it is also the only entry in `nixarr.mediaDirs`.
 
         > **Warning:** Setting this to any path, where the subpath is not
         > owned by root, will fail! For example:
@@ -107,6 +109,48 @@ in {
         > ```
         >
         > Is not supported, because `/home/user` is owned by `user`.
+      '';
+    };
+
+    mediaDirs = mkOption {
+      type = types.listOf (
+        types.coercedTo types.path
+          (path: {inherit path;})
+          (types.submodule {
+            options = {
+              path = mkOption {
+                type = types.path;
+                description = "Path to a media directory.";
+              };
+
+              create = mkOption {
+                type = types.bool;
+                default = true;
+                description = ''
+                  Whether Nixarr should create the media root and service
+                  library directories below it. Set this to false for a
+                  mountpoint that must not be recreated when its filesystem
+                  is absent.
+                '';
+              };
+            };
+          })
+      );
+      default = [cfg.mediaDir];
+      defaultText = literalExpression "[ config.nixarr.mediaDir ]";
+      example = [
+        {
+          path = "/mnt/media";
+          create = false;
+        }
+        "/local-media"
+      ];
+      description = ''
+        Media directories whose library structure Nixarr should manage.
+
+        A plain path is shorthand for `{ path = <path>; create = true; }`.
+        `nixarr.mediaDir` remains the primary path for services that require a
+        single media directory and must be included in this list.
       '';
     };
 
@@ -161,7 +205,7 @@ in {
 
           Otherwise, you would not be able to services over your local
           network. You might have to use this option to extend your list
-          with your local IP range by passing it with this option.
+          with your local IP range by passing this option.
         '';
         example = ["192.168.2.0/24"];
       };
@@ -246,13 +290,17 @@ in {
           to be set, but it was not.
         '';
       }
+      {
+        assertion = any (media: media.path == cfg.mediaDir) cfg.mediaDirs;
+        message = "nixarr.mediaDirs must include nixarr.mediaDir.";
+      }
     ];
 
     users.groups.media.members = cfg.mediaUsers;
 
-    systemd.tmpfiles.rules = [
-      "d '${cfg.mediaDir}'  2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-    ];
+    systemd.tmpfiles.rules = map (
+      media: "d '${media.path}'  2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+    ) (filter (media: media.create) cfg.mediaDirs);
 
     environment.systemPackages = with pkgs; [
       jdupes
