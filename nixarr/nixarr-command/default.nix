@@ -15,6 +15,16 @@ with lib; let
   nixarr-py = nixarr.nixarr-py.package;
   globals = config.util-nixarr.globals;
 
+  fix-media-permissions = concatMapStringsSep "\n" (media: ''
+    ${optionalString media.create ''mkdir -p "${media.path}"''}
+    if [ -d "${media.path}" ]; then
+      find "${media.path}" \( -type d -exec chmod 0775 {} + -true \) -o \( -exec chmod 0664 {} + \)
+      chown ${globals.libraryOwner.user}:${globals.libraryOwner.group} "${media.path}"
+      mkdir -p "${media.path}/library"
+      chown -R ${globals.libraryOwner.user}:${globals.libraryOwner.group} "${media.path}/library"
+    fi
+  '') nixarr.mediaDirs;
+
   show-prowlarr-schemas = writePython3Bin "show-prowlarr-schemas" {
     libraries = [nixarr-py];
     flakeIgnore = [
@@ -81,9 +91,7 @@ with lib; let
           exit
         fi
 
-        find "${nixarr.mediaDir}" \( -type d -exec chmod 0775 {} + -true \) -o \( -exec chmod 0664 {} + \)
-        mkdir -p "${nixarr.mediaDir}/library"
-        chown -R ${globals.libraryOwner.user}:${globals.libraryOwner.group} "${nixarr.mediaDir}/library"
+        ${fix-media-permissions}
 
         ${strings.optionalString nixarr.jellyfin.enable ''
         chown -R ${globals.jellyfin.user}:root "${nixarr.jellyfin.stateDir}"
