@@ -9,6 +9,7 @@ with lib; let
   globals = config.util-nixarr.globals;
   port = 7878;
   nixarr = config.nixarr;
+  managedMediaDirs = map (media: media.path) (filter (media: media.create) nixarr.mediaDirs);
 in {
   imports = [./settings-sync];
 
@@ -98,10 +99,10 @@ in {
       }
     ];
 
-    systemd.tmpfiles.rules = [
-      "d '${nixarr.mediaDir}/library'        2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/movies' 2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-    ];
+    systemd.tmpfiles.rules = concatMap (mediaDir: [
+      "d '${mediaDir}/library'        2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      "d '${mediaDir}/library/movies' 2775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+    ]) managedMediaDirs;
 
     # Set UMask to 0002 so directories are created with group write permission (775)
     # This allows other services in the media group (like Jellyfin) to modify files
