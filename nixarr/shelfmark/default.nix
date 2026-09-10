@@ -10,7 +10,9 @@ with lib; let
   globals = config.util-nixarr.globals;
   nixarr = config.nixarr;
   managedMediaDirs = map (media: media.path) (filter (media: media.create) nixarr.mediaDirs);
-  mediaDirs = map (media: media.path) nixarr.mediaDirs;
+  mediaReadWritePaths = map (
+    media: "${optionalString (!media.create) "-"}${toString media.path}"
+  ) nixarr.mediaDirs;
   port = 8084;
 in {
   options.nixarr.shelfmark = {
@@ -187,7 +189,7 @@ in {
       User = globals.shelfmark.user;
       Group = globals.shelfmark.group;
       StateDirectory = mkForce "";
-      ReadWritePaths = [cfg.stateDir] ++ mediaDirs;
+      ReadWritePaths = [cfg.stateDir] ++ mediaReadWritePaths;
       UMask = mkForce "0002";
     };
 
