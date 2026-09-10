@@ -8,6 +8,7 @@ with lib; let
   globals = config.util-nixarr.globals;
   defaultPort = 25600;
   nixarr = config.nixarr;
+  managedMediaDirs = map (media: media.path) (filter (media: media.create) nixarr.mediaDirs);
 in {
   options.nixarr.komga = {
     enable = mkOption {
@@ -159,17 +160,18 @@ in {
       };
     };
 
-    systemd.tmpfiles.rules = [
-      "d '${cfg.stateDir}'        0700 ${globals.komga.user} root - -"
-      "d '${cfg.stateDir}/log'    0700 ${globals.komga.user} root - -"
-      "d '${cfg.stateDir}/cache'  0700 ${globals.komga.user} root - -"
-      "d '${cfg.stateDir}/data'   0700 ${globals.komga.user} root - -"
-      "d '${cfg.stateDir}/config' 0700 ${globals.komga.user} root - -"
-
-      # Media Dirs
-      "d '${nixarr.mediaDir}/library'             0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/books'       0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-    ];
+    systemd.tmpfiles.rules =
+      [
+        "d '${cfg.stateDir}'        0700 ${globals.komga.user} root - -"
+        "d '${cfg.stateDir}/log'    0700 ${globals.komga.user} root - -"
+        "d '${cfg.stateDir}/cache'  0700 ${globals.komga.user} root - -"
+        "d '${cfg.stateDir}/data'   0700 ${globals.komga.user} root - -"
+        "d '${cfg.stateDir}/config' 0700 ${globals.komga.user} root - -"
+      ]
+      ++ concatMap (mediaDir: [
+        "d '${mediaDir}/library'             0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+        "d '${mediaDir}/library/books'       0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      ]) managedMediaDirs;
 
     services.komga = {
       enable = cfg.enable;
