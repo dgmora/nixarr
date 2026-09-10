@@ -9,6 +9,7 @@ with lib; let
   globals = config.util-nixarr.globals;
   defaultPort = 32400;
   nixarr = config.nixarr;
+  managedMediaDirs = map (media: media.path) (filter (media: media.create) nixarr.mediaDirs);
 in {
   options.nixarr.plex = {
     enable = mkOption {
@@ -163,14 +164,14 @@ in {
       };
     };
 
-    systemd.tmpfiles.rules = [
-      "d '${nixarr.mediaDir}/library'             0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/shows'       0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/movies'      0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/music'       0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/books'       0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-      "d '${nixarr.mediaDir}/library/audiobooks'  0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
-    ];
+    systemd.tmpfiles.rules = concatMap (mediaDir: [
+      "d '${mediaDir}/library'             0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      "d '${mediaDir}/library/shows'       0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      "d '${mediaDir}/library/movies'      0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      "d '${mediaDir}/library/music'       0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      "d '${mediaDir}/library/books'       0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+      "d '${mediaDir}/library/audiobooks'  0775 ${globals.libraryOwner.user} ${globals.libraryOwner.group} - -"
+    ]) managedMediaDirs;
 
     # Always prioritise Plex IO
     systemd.services.plex.serviceConfig.IOSchedulingPriority = 0;
