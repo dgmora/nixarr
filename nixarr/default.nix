@@ -7,6 +7,8 @@
 with lib; let
   cfg = config.nixarr;
   globals = config.util-nixarr.globals;
+  primaryMediaDirCreate = any (media: media.path == cfg.mediaDir && media.create) cfg.mediaDirs;
+  managedDownloadClientEnabled = cfg.transmission.enable || cfg.qbittorrent.enable || cfg.sabnzbd.enable;
 in {
   imports = [
     ./anchorr
@@ -151,6 +153,10 @@ in {
         A plain path is shorthand for `{ path = <path>; create = true; }`.
         `nixarr.mediaDir` remains the primary path for services that require a
         single media directory and must be included in this list.
+
+        If the primary `nixarr.mediaDir` has `create = false`, Nixarr-managed
+        download clients must be disabled because their download directories
+        live under that canonical path.
       '';
     };
 
@@ -205,7 +211,7 @@ in {
 
           Otherwise, you would not be able to services over your local
           network. You might have to use this option to extend your list
-          with your local IP range by passing this option.
+          with your local IP range by passing it with this option.
         '';
         example = ["192.168.2.0/24"];
       };
@@ -293,6 +299,15 @@ in {
       {
         assertion = any (media: media.path == cfg.mediaDir) cfg.mediaDirs;
         message = "nixarr.mediaDirs must include nixarr.mediaDir.";
+      }
+      {
+        assertion = primaryMediaDirCreate || !managedDownloadClientEnabled;
+        message = ''
+          nixarr.mediaDir has create = false, but a Nixarr-managed download
+          client is enabled. Transmission, qBittorrent and SABnzbd use
+          nixarr.mediaDir for their download directories and require it to be
+          managed/created by Nixarr.
+        '';
       }
     ];
 
