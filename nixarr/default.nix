@@ -192,7 +192,7 @@ in {
         default = false;
         example = true;
         description = ''
-          **Required options:** [`nixarr.vpn.wgConf`](#nixarr.vpn.wgconf)
+          **Required options:** [`nixarr.vpn.wgConf`](#nixarr.vpn.enable)
 
           Whether or not to enable VPN support for the services that nixarr
           supports.
@@ -236,7 +236,7 @@ in {
           example = 58403;
           description = ''
             The port that netcat listens to on the vpn test service. If set to
-            `null`, then it will not be started.
+            `null`, then netcat will not be started.
           '';
         };
       };
@@ -362,7 +362,7 @@ in {
 
       script = let
         vpn-test = pkgs.writeShellApplication {
-          name = "vpn-test-service";
+          name = "vpn-test";
 
           runtimeInputs = with pkgs; [util-linux unixtools.ping coreutils curl bash libressl netcat-gnu openresolv dig];
 
@@ -403,7 +403,7 @@ in {
               else ""
             );
         };
-      in "${vpn-test}/bin/vpn-test-service";
+      in "${vpn-test}/bin/vpn-test";
     };
   };
 }
