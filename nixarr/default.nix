@@ -7,7 +7,13 @@
 with lib; let
   cfg = config.nixarr;
   globals = config.util-nixarr.globals;
-  primaryMediaDirCreate = any (media: media.path == cfg.mediaDir && media.create) cfg.mediaDirs;
+  primaryMediaDir =
+    if cfg.mediaDirs == []
+    then {
+      path = cfg.mediaDir;
+      create = true;
+    }
+    else head cfg.mediaDirs;
   managedDownloadClientEnabled = cfg.transmission.enable || cfg.qbittorrent.enable || cfg.sabnzbd.enable;
 in {
   imports = [
@@ -99,9 +105,10 @@ in {
       default = "/data/media";
       example = "/nixarr";
       description = ''
-        The primary media directory for the services. Services that require a
-        single media path, such as download clients, continue to use this path.
-        By default it is also the only entry in `nixarr.mediaDirs`.
+        Legacy single media directory option, kept for backwards compatibility.
+        When `nixarr.mediaDirs` is not set, it defaults to a single entry using
+        this path. New multi-root configurations should set `nixarr.mediaDirs`
+        directly instead.
 
         > **Warning:** Setting this to any path, where the subpath is not
         > owned by root, will fail! For example:
@@ -148,15 +155,16 @@ in {
         "/local-media"
       ];
       description = ''
-        Media directories whose library structure Nixarr should manage.
+        Media directories whose library structure Nixarr should manage. The
+        first entry is the primary/canonical media root.
 
         A plain path is shorthand for `{ path = <path>; create = true; }`.
-        `nixarr.mediaDir` remains the primary path for services that require a
-        single media directory and must be included in this list.
+        Existing configurations that only set `nixarr.mediaDir` keep working:
+        `mediaDirs` defaults to `[ mediaDir ]`.
 
-        If the primary `nixarr.mediaDir` has `create = false`, Nixarr-managed
-        download clients must be disabled because their download directories
-        live under that canonical path.
+        Nixarr-managed download clients still use the legacy `mediaDir`
+        internally for now, so when one of them is enabled it must match the
+        first `mediaDirs` entry and that entry must have `create = true`.
       '';
     };
 
@@ -228,7 +236,7 @@ in {
           example = 58403;
           description = ''
             The port that netcat listens to on the vpn test service. If set to
-            `null`, then netcat will not be started.
+            `null`, then it will not be started.
           '';
         };
       };
@@ -297,16 +305,18 @@ in {
         '';
       }
       {
-        assertion = any (media: media.path == cfg.mediaDir) cfg.mediaDirs;
-        message = "nixarr.mediaDirs must include nixarr.mediaDir.";
+        assertion = cfg.mediaDirs != [];
+        message = "nixarr.mediaDirs must contain at least one media directory.";
       }
       {
-        assertion = primaryMediaDirCreate || !managedDownloadClientEnabled;
+        assertion =
+          !managedDownloadClientEnabled
+          || (primaryMediaDir.path == cfg.mediaDir && primaryMediaDir.create);
         message = ''
-          nixarr.mediaDir has create = false, but a Nixarr-managed download
-          client is enabled. Transmission, qBittorrent and SABnzbd use
-          nixarr.mediaDir for their download directories and require it to be
-          managed/created by Nixarr.
+          A Nixarr-managed download client is enabled, but the first
+          nixarr.mediaDirs entry does not match nixarr.mediaDir or has
+          create = false. Transmission, qBittorrent and SABnzbd still use the
+          legacy nixarr.mediaDir path internally and require it to be managed.
         '';
       }
     ];
@@ -352,7 +362,7 @@ in {
 
       script = let
         vpn-test = pkgs.writeShellApplication {
-          name = "vpn-test";
+          name = "vpn-test-service";
 
           runtimeInputs = with pkgs; [util-linux unixtools.ping coreutils curl bash libressl netcat-gnu openresolv dig];
 
@@ -393,7 +403,7 @@ in {
               else ""
             );
         };
-      in "${vpn-test}/bin/vpn-test";
+      in "${vpn-test}/bin/vpn-test-service";
     };
   };
 }
