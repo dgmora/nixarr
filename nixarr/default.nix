@@ -192,7 +192,7 @@ in {
         default = false;
         example = true;
         description = ''
-          **Required options:** [`nixarr.vpn.wgConf`](#nixarr.vpn.enable)
+          **Required options:** [`nixarr.vpn.wgConf`](#nixarr.vpn.wgconf)
 
           Whether or not to enable VPN support for the services that nixarr
           supports.
