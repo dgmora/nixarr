@@ -14,6 +14,9 @@ pkgs.testers.runNixOSTest {
 
     networking.firewall.enable = false;
 
+    # Exercise settings sync with Bazarr served under a URL prefix.
+    systemd.services.bazarr.serviceConfig.Environment = "DYNACONF_GENERAL__BASE_URL=/bazarr";
+
     virtualisation.cores = 4; # one per service plus one for luck
 
     nixarr = {
@@ -22,8 +25,15 @@ pkgs.testers.runNixOSTest {
       bazarr = {
         enable = true;
         settings-sync = {
-          sonarr.enable = true;
-          radarr.enable = true;
+          baseUrl = "http://127.0.0.1:6767/bazarr";
+          sonarr = {
+            enable = true;
+            config.sync_only_monitored_series = true;
+          };
+          radarr = {
+            enable = true;
+            config.sync_only_monitored_movies = true;
+          };
         };
       };
 
@@ -52,6 +62,22 @@ pkgs.testers.runNixOSTest {
 
     # Once the APIs are up, the sync service shouldn't take long
     machine.wait_for_unit("bazarr-sync-config.service", timeout=60)
+    machine.succeed("systemctl is-active bazarr-sync-config.service")
+
+    # A successful oneshot does not prove that Bazarr accepted its settings.
+    machine.succeed("""
+      ${pkgs.curl}/bin/curl -fsS \\
+        -H "X-API-KEY: $(cat /data/.state/nixarr/secrets/bazarr.api-key)" \\
+        http://127.0.0.1:6767/bazarr/api/system/settings \\
+        | ${pkgs.jq}/bin/jq -e '
+          .general.use_sonarr == true and
+          .general.use_radarr == true and
+          .sonarr.only_monitored == true and
+          .radarr.only_monitored == true and
+          .sonarr.port == 8989 and
+          .radarr.port == 7878
+        '
+    """)
 
     print("\n=== Bazarr Sync Test Completed ===")
   '';
