@@ -66,9 +66,9 @@ pkgs.testers.runNixOSTest {
 
     # A successful oneshot does not prove that Bazarr accepted its settings.
     machine.succeed("""
-      ${pkgs.curl}/bin/curl -fsS \\
-        -H "X-API-KEY: $(cat /data/.state/nixarr/secrets/bazarr.api-key)" \\
-        http://127.0.0.1:6767/bazarr/api/system/settings \\
+      ${pkgs.curl}/bin/curl -fsS \
+        -H "X-API-KEY: $(cat /data/.state/nixarr/secrets/bazarr.api-key)" \
+        http://127.0.0.1:6767/bazarr/api/system/settings \
         | ${pkgs.jq}/bin/jq -e '
           .general.use_sonarr == true and
           .general.use_radarr == true and
