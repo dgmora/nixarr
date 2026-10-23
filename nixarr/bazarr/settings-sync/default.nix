@@ -120,6 +120,14 @@
 in {
   options = {
     nixarr.bazarr.settings-sync = {
+      baseUrl = mkOption {
+        type = types.str;
+        default = "http://127.0.0.1:${toString nixarr.bazarr.port}";
+        defaultText = literalExpression ''"http://127.0.0.1:${toString config.nixarr.bazarr.port}"'';
+        example = "http://127.0.0.1:6767/bazarr";
+        description = "Bazarr API base URL, including a configured URL prefix.";
+      };
+
       sonarr = {
         enable = mkOption {
           type = types.bool;
@@ -187,7 +195,7 @@ in {
         RemainAfterExit = true;
         ExecStart = let
           config-file = writeJSON "bazarr-sync-config.json" ({
-              bazarr_base_url = "http://127.0.0.1:${toString nixarr.bazarr.port}";
+              bazarr_base_url = cfg.baseUrl;
               bazarr_api_key_file = "${nixarr.stateDir}/secrets/bazarr.api-key";
             }
             // lib.optionalAttrs cfg.sonarr.enable {sonarr = cfg.sonarr.config;}
