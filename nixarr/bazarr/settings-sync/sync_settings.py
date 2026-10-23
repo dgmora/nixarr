@@ -5,6 +5,7 @@ import logging
 import pathlib
 import urllib.request
 import urllib.error
+import urllib.parse
 
 import pydantic
 
@@ -53,13 +54,18 @@ def make_request(
     data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Make a request to the Bazarr API."""
-    url = f"{base_url}/api{endpoint}"
-    headers = {
-        "X-API-KEY": api_key,
-        "Content-Type": "application/json",
-    }
+    url = f"{base_url.rstrip('/')}/api{endpoint}"
+    headers = {"X-API-KEY": api_key}
 
-    request_data = json.dumps(data).encode("utf-8") if data else None
+    # Bazarr's settings endpoint reads request.form, not JSON.
+    request_data = None
+    if data is not None:
+        form = {
+            key: str(value).lower() if isinstance(value, bool) else str(value)
+            for key, value in data.items()
+        }
+        request_data = urllib.parse.urlencode(form).encode("utf-8")
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
     req = urllib.request.Request(url, data=request_data, headers=headers, method=method)
 
     try:
@@ -98,6 +104,7 @@ def sync_sonarr(
             apikey = f.read().strip()
 
     settings = {
+        "settings-general-use_sonarr": True,
         "settings-sonarr-ip": sonarr_config.ip,
         "settings-sonarr-port": sonarr_config.port,
         "settings-sonarr-base_url": sonarr_config.base_url,
@@ -105,7 +112,6 @@ def sync_sonarr(
         "settings-sonarr-apikey": apikey,
         "settings-sonarr-only_monitored": sonarr_config.sync_only_monitored_series,
         "settings-sonarr-series_sync": 60,
-        "settings-sonarr-episodes_sync": 60,
     }
 
     save_settings(bazarr_base_url, bazarr_api_key, settings)
@@ -127,6 +133,7 @@ def sync_radarr(
             apikey = f.read().strip()
 
     settings = {
+        "settings-general-use_radarr": True,
         "settings-radarr-ip": radarr_config.ip,
         "settings-radarr-port": radarr_config.port,
         "settings-radarr-base_url": radarr_config.base_url,
